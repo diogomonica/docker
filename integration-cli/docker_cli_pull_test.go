@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/go-check/check"
 )
@@ -214,5 +215,46 @@ func (s *DockerTrustSuite) TestUntrustedPull(c *check.C) {
 
 	if !strings.Contains(string(out), "no trust data available") {
 		c.Fatalf("Missing expected output on trusted pull:\n%s", out)
+	}
+}
+
+func (s *DockerTrustSuite) TestPullWhenCertExpired(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+
+	pushCmd := exec.Command(dockerBinary, "push", repoName)
+	s.trustedCmd(pushCmd)
+	out, _, err := runCommandWithOutput(pushCmd)
+	if err != nil {
+		c.Fatalf("Error running trusted push: %s\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Signing and pushing trust metadata") {
+		c.Fatalf("Missing expected output on trusted push:\n%s", out)
+	}
+
+	dockerCmd(c, "rmi", repoName)
+
+	// Layout for date. MMDDhhmmYYYY
+	const timeLayout = "010203042006"
+
+	// Certificates have 10 years of expiration
+	futureTime := time.Now().Add(time.Hour * 24 * 365 * 11)
+	dateChange := exec.Command("date", futureTime.Format(timeLayout))
+	// Ensure we bring time back to now
+	defer exec.Command("date", time.Now().Format(timeLayout))
+	// Change the date 11 years to the future
+	runCommand(dateChange)
+
+	// Try pull
+	pullCmd := exec.Command(dockerBinary, "pull", repoName)
+	s.trustedCmd(pullCmd)
+	out, _, err = runCommandWithOutput(pullCmd)
+	if err == nil {
+		c.Fatalf("Error running trusted pull in the distant future: %s\n%s", err, out)
+	}
+
+	if !strings.Contains(string(out), "could not validate the path to a trusted root") {
+		c.Fatalf("Missing expected output on trusted pull in the distant future:\n%s", out)
 	}
 }
