@@ -2518,7 +2518,7 @@ func (s *DockerSuite) TestRunWriteFilteredProc(c *check.C) {
 }
 
 func (s *DockerTrustSuite) TestTrustedRun(c *check.C) {
-	repoName := fmt.Sprintf("%v/dockerclirun/trusted:foobar", privateRegistryURL)
+	repoName := fmt.Sprintf("%v/dockerclirun/trusted:latest", privateRegistryURL)
 	// tag the image and upload it to the private registry
 	dockerCmd(c, "tag", "busybox", repoName)
 
@@ -2629,4 +2629,3 @@ func (s *DockerTrustSuite) TestRunWhenCertExpired(c *check.C) {
 		}
 	})
 }
-

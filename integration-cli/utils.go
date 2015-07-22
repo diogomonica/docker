@@ -340,7 +340,7 @@ func (c *channelBuffer) ReadTimeout(p []byte, n time.Duration) (int, error) {
 	}
 }
 
-func runAtDifferentDate (date time.Time, block func () ) {
+func runAtDifferentDate(date time.Time, block func()) {
 	// Layout for date. MMDDhhmmYYYY
 	const timeLayout = "010203042006"
 	// Ensure we bring time back to now
