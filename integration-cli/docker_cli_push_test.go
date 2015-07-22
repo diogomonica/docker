@@ -135,3 +135,73 @@ func (s *DockerTrustSuite) TestTrustedPush(c *check.C) {
 		c.Fatalf("Missing expected output on trusted push:\n%s", out)
 	}
 }
+
+func (s *DockerTrustSuite) TestTrustedPushWithoutServer(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+
+	pushCmd := exec.Command(dockerBinary, "push", repoName)
+	s.trustedCmdWithServer(pushCmd, "example/")
+	out, _, err := runCommandWithOutput(pushCmd)
+	if err == nil {
+		c.Fatalf("Missing error while running trusted push w/ no server")
+	}
+
+	if !strings.Contains(string(out), "Error establishing connection to notary repository") {
+		c.Fatalf("Missing expected output on trusted push:\n%s", out)
+	}
+}
+
+func (s *DockerTrustSuite) TestTrustedPushWithoutServerAndUntrusted(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+
+	pushCmd := exec.Command(dockerBinary, "push", "--untrusted", repoName)
+	s.trustedCmdWithServer(pushCmd, "example/")
+	out, _, err := runCommandWithOutput(pushCmd)
+	if err != nil {
+		c.Fatalf("trusted push with no server and --untrusted failed: %s\n%s", err, out)
+	}
+
+	if strings.Contains(string(out), "Error establishing connection to notary repository") {
+		c.Fatalf("Missing expected output on trusted push with --untrusted:\n%s", out)
+	}
+}
+
+func (s *DockerTrustSuite) TestTrustedPushWithExistingTag(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+	dockerCmd(c, "push", repoName)
+
+	pushCmd := exec.Command(dockerBinary, "push", repoName)
+	s.trustedCmd(pushCmd)
+	out, _, err := runCommandWithOutput(pushCmd)
+	if err != nil {
+		c.Fatalf("trusted push failed: %s\n%s", err, out)
+	}
+
+	if !strings.Contains(string(out), "Signing and pushing trust metadata") {
+		c.Fatalf("Missing expected output on trusted push with existing tag:\n%s", out)
+	}
+}
+
+func (s *DockerTrustSuite) TestTrustedPushWithExistingTag(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+	dockerCmd(c, "push", repoName)
+
+	pushCmd := exec.Command(dockerBinary, "push", repoName)
+	s.trustedCmd(pushCmd)
+	out, _, err := runCommandWithOutput(pushCmd)
+	if err != nil {
+		c.Fatalf("trusted push failed: %s\n%s", err, out)
+	}
+
+	if !strings.Contains(string(out), "Signing and pushing trust metadata") {
+		c.Fatalf("Missing expected output on trusted push with existing tag:\n%s", out)
+	}
+}
