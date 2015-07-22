@@ -235,26 +235,34 @@ func (s *DockerTrustSuite) TestPullWhenCertExpired(c *check.C) {
 
 	dockerCmd(c, "rmi", repoName)
 
-	// Layout for date. MMDDhhmmYYYY
-	const timeLayout = "010203042006"
-
 	// Certificates have 10 years of expiration
-	futureTime := time.Now().Add(time.Hour * 24 * 365 * 11)
-	dateChange := exec.Command("date", futureTime.Format(timeLayout))
-	// Ensure we bring time back to now
-	defer exec.Command("date", time.Now().Format(timeLayout))
-	// Change the date 11 years to the future
-	runCommand(dateChange)
+	elevenYearsFromNow := time.Now().Add(time.Hour * 24 * 365 * 11)
 
-	// Try pull
-	pullCmd := exec.Command(dockerBinary, "pull", repoName)
-	s.trustedCmd(pullCmd)
-	out, _, err = runCommandWithOutput(pullCmd)
-	if err == nil {
-		c.Fatalf("Error running trusted pull in the distant future: %s\n%s", err, out)
-	}
+	runAtDifferentDate(elevenYearsFromNow, func() {
+		// Try pull
+		pullCmd := exec.Command(dockerBinary, "pull", repoName)
+		s.trustedCmd(pullCmd)
+		out, _, err = runCommandWithOutput(pullCmd)
+		if err == nil {
+			c.Fatalf("Error running trusted pull in the distant future: %s\n%s", err, out)
+		}
 
-	if !strings.Contains(string(out), "could not validate the path to a trusted root") {
-		c.Fatalf("Missing expected output on trusted pull in the distant future:\n%s", out)
-	}
+		if !strings.Contains(string(out), "could not validate the path to a trusted root") {
+			c.Fatalf("Missing expected output on trusted pull in the distant future:\n%s", out)
+		}
+	})
+
+	runAtDifferentDate(elevenYearsFromNow, func() {
+		// Try pull
+		pullCmd := exec.Command(dockerBinary, "pull", "--untrusted", repoName)
+		s.trustedCmd(pullCmd)
+		out, _, err = runCommandWithOutput(pullCmd)
+		if err != nil {
+			c.Fatalf("Error running untrusted pull in the distant future: %s\n%s", err, out)
+		}
+
+		if !strings.Contains(string(out), "Status: Downloaded") {
+			c.Fatalf("Missing expected output on untrusted pull in the distant future:\n%s", out)
+		}
+	})
 }
