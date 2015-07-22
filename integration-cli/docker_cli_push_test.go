@@ -188,20 +188,56 @@ func (s *DockerTrustSuite) TestTrustedPushWithExistingTag(c *check.C) {
 	}
 }
 
-func (s *DockerTrustSuite) TestTrustedPushWithExistingTag(c *check.C) {
+func (s *DockerTrustSuite) TestTrustedPushWithShortRootPassphrase(c *check.C) {
 	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
 	// tag the image and upload it to the private registry
 	dockerCmd(c, "tag", "busybox", repoName)
-	dockerCmd(c, "push", repoName)
 
 	pushCmd := exec.Command(dockerBinary, "push", repoName)
-	s.trustedCmd(pushCmd)
+	s.trustedCmdWithPassphrases(pushCmd, "rootPwd", "", "")
 	out, _, err := runCommandWithOutput(pushCmd)
-	if err != nil {
-		c.Fatalf("trusted push failed: %s\n%s", err, out)
+	if err == nil {
+		c.Fatalf("Error missing from trusted push with short root passphrase")
 	}
 
-	if !strings.Contains(string(out), "Signing and pushing trust metadata") {
-		c.Fatalf("Missing expected output on trusted push with existing tag:\n%s", out)
+	if !strings.Contains(string(out), "tuf: insufficient signatures for Cryptoservice") {
+		c.Fatalf("Missing expected output on trusted push with short root passphrase:\n%s", out)
+	}
+}
+
+func (s *DockerTrustSuite) TestTrustedPushWithIncorrectRootPassphrase(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+
+	// Push with default passphrase
+	pushCmd := exec.Command(dockerBinary, "push", "--untrusted", repoName)
+	s.trustedCmd(pushCmd)
+	out, _, _ := runCommandWithOutput(pushCmd)
+	fmt.Println("OUTPUT: ", out)
+
+	// Push with incorrect passphrase
+	pushCmd = exec.Command(dockerBinary, "push", "--untrusted", repoName)
+	s.trustedCmd(pushCmd)
+	// s.trustedCmdWithPassphrases(pushCmd, "87654321", "", "")
+	out, _, _ = runCommandWithOutput(pushCmd)
+	fmt.Println("OUTPUT2:", out)
+	c.Fail()
+}
+
+func (s *DockerTrustSuite) TestTrustedPushWithShortPassphraseForNonRoot(c *check.C) {
+	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	// tag the image and upload it to the private registry
+	dockerCmd(c, "tag", "busybox", repoName)
+
+	pushCmd := exec.Command(dockerBinary, "push", repoName)
+	s.trustedCmdWithPassphrases(pushCmd, "12345678", "short", "short")
+	out, _, err := runCommandWithOutput(pushCmd)
+	if err == nil {
+		c.Fatalf("Error missing from trusted push with short targets passphrase")
+	}
+
+	if !strings.Contains(string(out), "tuf: insufficient signatures for Cryptoservice") {
+		c.Fatalf("Missing expected output on trusted push with short targets/snapsnot passphrase:\n%s", out)
 	}
 }
