@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -245,21 +246,30 @@ func (p *v2Puller) pullV2Tag(tag, taggedName string) (bool, error) {
 		go p.download(&downloads[i])
 	}
 
-	var tagUpdated bool
+	var (
+		tagUpdated   bool
+		downloadFail bool
+	)
 	for i := len(downloads) - 1; i >= 0; i-- {
 		d := &downloads[i]
-		if d.err != nil {
-			if err := <-d.err; err != nil {
-				return false, err
-			}
+		// Should allways be ran for all of the layers, even on error
+		if d.tmpFile != nil {
+			defer os.Remove(d.tmpFile.Name())
+			defer d.tmpFile.Close()
+		}
+		// Checks to see if there was an error downloading this layer
+		if err := <-d.err; err != nil {
+			downloadFail = true
+			logrus.Debugf("Error downloading layer: %v", err)
+		}
+		// If there was an error we can't extract any of the decendents, skip
+		if downloadFail {
+			continue
 		}
 		if d.layer != nil {
 			// if tmpFile is empty assume download and extracted elsewhere
-			defer os.Remove(d.tmpFile.Name())
-			defer d.tmpFile.Close()
-			d.tmpFile.Seek(0, 0)
 			if d.tmpFile != nil {
-
+				d.tmpFile.Seek(0, 0)
 				reader := progressreader.New(progressreader.Config{
 					In:        d.tmpFile,
 					Out:       out,
@@ -278,7 +288,6 @@ func (p *v2Puller) pullV2Tag(tag, taggedName string) (bool, error) {
 				if err := p.graph.SetDigest(d.img.ID, d.digest); err != nil {
 					return false, err
 				}
-
 				// FIXME: Pool release here for parallel tag pull (ensures any downloads block until fully extracted)
 			}
 			out.Write(p.sf.FormatProgress(stringid.TruncateID(d.img.ID), "Pull complete", nil))
@@ -286,6 +295,10 @@ func (p *v2Puller) pullV2Tag(tag, taggedName string) (bool, error) {
 		} else {
 			out.Write(p.sf.FormatProgress(stringid.TruncateID(d.img.ID), "Already exists", nil))
 		}
+	}
+
+	if downloadFail {
+		return false, errors.New("one or more layers failed to download or verify successfully")
 	}
 
 	manifestDigest, _, err := digestFromManifest(manifest, p.repoInfo.LocalName)
