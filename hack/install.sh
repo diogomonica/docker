@@ -374,6 +374,11 @@ do_install() {
 			$sh_c "mkdir -p /etc/apt/sources.list.d"
 			$sh_c "echo deb https://apt.dockerproject.org/repo ${lsb_dist}-${dist_version} ${repo} > /etc/apt/sources.list.d/docker.list"
 			$sh_c 'sleep 3; apt-get update; apt-get install -y -q docker-engine'
+			# for the time being until the yubikey notary implementation is out of experimental keep this here
+			# then later move this to hack/make/.build-deb/control in Requires
+			if [ "$repo" = "experimental" ]; then
+				$sh_c 'apt-get install -y yubico-piv-tool'
+			fi
 			)
 			echo_docker_as_nonroot
 			exit 0
